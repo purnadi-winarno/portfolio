@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
+import { useState, useRef, useEffect, useCallback } from 'react';
 
 const timelineData = [
   {
@@ -33,6 +34,29 @@ const timelineData = [
 ];
 
 export function Timeline() {
+  const [linePosition, setLinePosition] = useState({ top: 0, bottom: 0 });
+  const firstCardRef = useRef<HTMLDivElement>(null);
+  const lastCardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const updateLinePosition = () => {
+      if (firstCardRef.current && lastCardRef.current) {
+        const firstCard = firstCardRef.current.getBoundingClientRect();
+        const lastCard = lastCardRef.current.getBoundingClientRect();
+        const containerTop = firstCardRef.current.parentElement?.getBoundingClientRect().top || 0;
+
+        setLinePosition({
+          top: (firstCard.top + firstCard.height / 2) - containerTop,
+          bottom: lastCard.bottom - lastCard.height / 2 - containerTop
+        });
+      }
+    };
+
+    updateLinePosition();
+    window.addEventListener('resize', updateLinePosition);
+    return () => window.removeEventListener('resize', updateLinePosition);
+  }, []);
+
   return (
     <section className="py-32 bg-gradient-to-b from-gray-900 to-gray-800 relative">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(120,119,198,0.1),rgba(255,255,255,0))]" />
@@ -48,9 +72,20 @@ export function Timeline() {
         </motion.h2>
 
         <div className="relative max-w-7xl mx-auto">
-          {/* Timeline line with gradient - Now positioned to connect dots */}
-          <div className="absolute left-[50%] top-6 bottom-6 w-px bg-gradient-to-b from-blue-500/80 to-purple-500/80 blur-[0.5px] transform -translate-x-[0.5px]" />
-          <div className="absolute left-[50%] top-6 bottom-6 w-[2px] bg-gradient-to-b from-blue-500 to-purple-500 transform -translate-x-[1px]" />
+          {/* Timeline vertical line container */}
+          <div 
+            className="absolute left-[50%]"
+            style={{ 
+              transform: 'translateX(-50%)',
+              top: `${linePosition.top}px`,
+              height: `${linePosition.bottom - linePosition.top}px`
+            }}
+          >
+            {/* Blur effect line */}
+            <div className="absolute inset-0 w-px bg-gradient-to-b from-blue-500/80 to-purple-500/80 blur-[0.5px]" />
+            {/* Solid line */}
+            <div className="absolute inset-0 w-[2px] bg-gradient-to-b from-blue-500 to-purple-500" />
+          </div>
           
           {timelineData.map((item, index) => {
             const [ref, inView] = useInView({
@@ -58,17 +93,26 @@ export function Timeline() {
               threshold: 0.2
             });
 
+            // Combine refs for first and last cards
+            const cardRef = useCallback((node: HTMLDivElement) => {
+              if (node) {
+                ref(node);
+                if (index === 0) firstCardRef.current = node;
+                if (index === timelineData.length - 1) lastCardRef.current = node;
+              }
+            }, [ref, index]);
+
             return (
               <div
                 key={index}
-                ref={ref}
+                ref={cardRef}
                 className={`flex items-center mb-24 last:mb-0 ${
                   index % 2 === 0 ? 'flex-row' : 'flex-row-reverse'
                 }`}
               >
                 {/* Card Section */}
                 <motion.div 
-                  className={`w-[calc(50%-3rem)] ${index % 2 === 0 ? 'pr-12' : 'pl-12'}`}
+                  className={`w-[calc(50%-3rem)] relative ${index % 2 === 0 ? 'pr-12' : 'pl-12'}`}
                   initial={{ opacity: 0, x: index % 2 === 0 ? -100 : 100 }}
                   animate={inView ? { opacity: 1, x: 0 } : {}}
                   transition={{ 
@@ -78,6 +122,17 @@ export function Timeline() {
                     stiffness: 100
                   }}
                 >
+                  {/* Horizontal dotted line */}
+                  <div 
+                    className={`absolute top-1/2 ${
+                      index % 2 === 0 ? 'right-[-40px] left-[calc(80%)]' : 'left-[-50px] right-[80%]'
+                    } h-[2px]`}
+                    style={{
+                      backgroundImage: 'linear-gradient(to right, rgb(59 130 246 / 0.5) 50%, rgb(168 85 247 / 0.5) 50%)',
+                      backgroundSize: '8px 1px'
+                    }}
+                  />
+
                   <motion.div 
                     className="p-8 bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-700/50"
                     whileHover={{ scale: 1.02 }}
